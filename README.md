@@ -16,6 +16,7 @@ look at [this link for details](https://github.com/wb2osz/direwolf)
 #### install latest SSDV. 
 look at [this link for details](https://github.com/fsphil/ssdv)
 ```bash
+cd ~
 git clone https://github.com/fsphil/ssdv
 cd ssdv
 make
