@@ -87,12 +87,12 @@ def main():
     parser.add_argument("--dir", type=str, default=".",
                         help="output directory (default: .)") 
     parser.add_argument("--version", action='version', version=f"ssdv2sat-%(prog)s v{VERSION} by hobisatelit <https://github.com/hobisatelit>", help="Show the version of the application")
-
-
-    args = parser.parse_args()
     
+    args = parser.parse_args()
+
+    args.input = os.path.abspath(args.input)
     basename = os.path.basename(args.input)
-    basename_noext = os.path.splitext(args.input)[0]
+    basename_noext = os.path.splitext(basename)[0]
 
     small_output_filename = f"{basename_noext}_small.jpg"
     ssdv_output_filename = f"{basename_noext}.bin"
@@ -142,7 +142,7 @@ def main():
 
 
             print(f"\nJPEG Optimization → {small_output_filename}")
-            print(f"Rezided to   : {im_resized.size[0]}×{im_resized.size[1]} (multiple of 16, aspect preserved)")
+            print(f"Resized to   : {im_resized.size[0]}×{im_resized.size[1]} (multiple of 16, aspect preserved)")
             print(f"Quality      : {args.quality}")
             print(f"Subsampling  : 4:2:0")
             print(f"Progressive  : disabled")
