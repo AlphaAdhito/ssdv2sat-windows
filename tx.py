@@ -101,12 +101,14 @@ def ax25_address(call, last=False):
 # === Main ===
 os.makedirs(AUDIO_DIR, exist_ok=True)
 
+filename = os.path.abspath(filename)
+
 if not os.path.exists(filename):
     print(f"Error: File '{filename}' not found!")
     sys.exit(1)
 
 basename = os.path.basename(filename)
-basename_noext = os.path.splitext(filename)[0]
+basename_noext = os.path.splitext(basename)[0]
 
 FILE_ID = generate_file_id_from_filename(f"{basename}{SRC_CALL}")
 
