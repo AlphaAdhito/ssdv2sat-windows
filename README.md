@@ -10,11 +10,11 @@ sudo apt update
 sudo apt install python3 sox git pavucontrol
 ```
 #### install latest Direwolf (IL2P support). 
-look at [this link for detailed](https://github.com/wb2osz/direwolf)
+look at [this link for details](https://github.com/wb2osz/direwolf)
 
 
 #### install latest SSDV. 
-look at [this link for detailed](https://github.com/fsphil/ssdv)
+look at [this link for details](https://github.com/fsphil/ssdv)
 ```bash
 git clone https://github.com/fsphil/ssdv
 cd ssdv
