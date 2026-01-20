@@ -76,7 +76,10 @@ change MODEM 1200 to MODEM 2400, or MODEM 9600. higher baudrate, faster transmis
 ### Another advanced command
 ```bash
 cd ~/ssdv2sat
-./tx -h
-./rx -h
+./tx.py -h
+./rx.py -h
+
+#set my callsign CALSIG, then create modulated wav from image file mario-poster.jpg, connect to dire wolf kiss server at ip 192.168.10.1, port 8080, set maximum lenght per ssdv packet 195 bytes, set delay 1 second between packet transmission, save all output on directory with named received
+./tx.py --host 192.168.10.1 --port 8080 --max 195 --delay 1 --dir received CALSIG mario-poster.jpg
 ```
 
