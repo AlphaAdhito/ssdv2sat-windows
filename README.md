@@ -58,7 +58,7 @@ cd ~/ssdv2sat
 direwolf -c direwolf.conf
 ```
 on another terminal run below command. 
-note: replace ABCDEF with your CALLSIGN. replace image.jpg with your image file. Script support many picture format: JPEG, PNG, etc). check at audio/ folder to see the result.
+note: replace ABCDEF with your CALLSIGN. replace image.jpg with your image file. Script support many picture format: JPEG, PNG, etc. check at audio folder to see the result.
 ```bash
 cd ~/ssdv2sat
 ./tx.py ABCDEF image.jpg
