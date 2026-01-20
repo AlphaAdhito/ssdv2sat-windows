@@ -69,10 +69,10 @@ cd ~/ssdv2sat
 cd ~/ssdv2sat
 ./rx.py
 ```
-play your recorded wav file or SDR, and the **rx.py** script will auto detect the image inside the sound signal. when finish, press Ctrl+C. the binary and image will be saved as .bin and .jpg in **output** directory
+play your recorded wav file or directly stream from SDR app, and the **rx.py** script will auto detect the image inside the signal. when finish, press Ctrl+C. the binary and image will be saved as .bin and .jpg in **output** directory
 
 ### How to change  Dire Wolf baudrate
-edit direwolf.conf at same directory with app. 
+edit direwolf.conf at same directory with script. 
 change MODEM 1200 to MODEM 2400, or MODEM 9600. higher baudrate, faster transmission. Please adjust according to your hardware support. Handheld FM ussualy support 1200 and 2400 only. 
 
 ### Another advanced command
