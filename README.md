@@ -83,6 +83,7 @@ personally i never test it on Windows. but it should also work. Dire Wolf, ssdv 
 cd ~/ssdv2sat
 ./tx.py -h
 ./rx.py -h
+./rx.py -s
 
 # set my **callsign MARIO**, then create modulated wav from **image file mario-poster.jpg**,
 # connect to dire wolf kiss server at **ip 192.168.10.1, port 8080**,
