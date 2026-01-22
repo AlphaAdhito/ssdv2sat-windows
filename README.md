@@ -75,6 +75,9 @@ play your recorded wav file or directly stream from SDR app, and the **rx.py** s
 edit direwolf.conf at same directory with script. 
 change MODEM 1200 to MODEM 2400, or MODEM 9600. higher baudrate, faster transmission. Please adjust according to your hardware support. Handheld FM ussualy support 1200 and 2400 only. 
 
+### How to run on Windows
+personally i never test it on Windows. but it should also work. Dire Wolf, ssdv and sox are available for windows os. 
+
 ### Another advanced command
 ```bash
 cd ~/ssdv2sat
