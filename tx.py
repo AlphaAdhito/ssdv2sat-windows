@@ -3,22 +3,23 @@
 # https://github.com/hobisatelit/ssdv2sat
 # License: GPL-3.0-or-later
 # SSDV doc: https://ukhas.org.uk/doku.php?id=guides:ssdv
-VERSION = '0.02'
 
 import socket
 import sys
 import time
 import subprocess
+import threading
 import os
 import hashlib
 import string
 import argparse
+import configparser
 
-# Default values
 DEFAULT_PACKET_LENGTH = 128
 DEFAULT_DELAY = 0
 DEFAULT_AUDIO_DIR = 'audio'
 ####################################
+VERSION = '0.02'
 
 ALPHANUM = string.ascii_uppercase + string.digits
 
@@ -27,10 +28,10 @@ FESC = b'\xDB'
 TFEND = b'\xDC'
 TFESC = b'\xDD'
 
-def show_progress(i, n, width=30):
+def show_progress(i, n, width=20):
     p = int(i) / int(n)
     bar = "█" * int(width * p) + "░" * (width - int(width * p))
-    print(f"\r[{bar}] {p:5.1%} - Frame {i:4d}/{n}", end="")
+    print(f"\r|{bar}| {p:5.1%} - Frame {i:4d}/{n}", end="")
 
 def generate_random_id():
     random_entropy = os.urandom(256)
@@ -38,21 +39,30 @@ def generate_random_id():
     return ALPHANUM[byte1 % 36] + ALPHANUM[byte2 % 36] + ALPHANUM[byte3 % 36]
 
 def start_recording(output_filename):
-    command = ["sox", "-d", "-r", "44100", "-c", "1", "-t", "wav", "-q", "-V1", output_filename]
-    return subprocess.Popen(command)
+  try:
+    command = [DEFAULT_APP_SOX, "-d", "-r", "44100", "-c", "1", "-t", "wav", "-q", "-V1", output_filename]
+    return subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+  except FileNotFoundError:
+    print(f"Error: {DEFAULT_APP_SOX} not found. Make sure its installed.\nCheck config.ini. Audio file not created..")
+    return None
+  except subprocess.CalledProcessError as e:
+    print(f"An error occurred while running {DEFAULT_APP_SOX}: {e}")
+    return None
+    
     
 def img2ssdv(packet_length,output_dir,input_filename,callsign,text,quality,max_size,filesuffix):
   try:
     max_w, max_h = max_size
     command = [os.path.join(os.getcwd(),"img2ssdv.py"), "--length", str(packet_length), "--dir", str(output_dir), "--callsign", str(callsign),  input_filename, "--text", str(text), "--quality", str(quality), "--max-size", str(max_w), str(max_h), "--suffix", filesuffix]
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # waiting until app finish 
     stdout, stderr = process.communicate()
-    return stderr.decode().strip()
-    #return process
+    return stdout.decode().strip()
   except FileNotFoundError:
-    return f"Cannot find img2ssdv.py script. {output_filename} not created.."
+    print(f"\nError: img2ssdv.py not found. SSDV image not created..")
+    return None
   except subprocess.CalledProcessError as e:
-    print(f"An error occurred while running {app_name}: {e}")
+    print(f"An error occurred while running img2ssdv.py: {e}")
     return None
 
 def stop_recording(process):
@@ -97,7 +107,7 @@ def main():
     parser.add_argument("--version", action='version', version=f"ssdv2sat-%(prog)s v{VERSION} by hobisatelit <https://github.com/hobisatelit>", help="Show the version of the application")
 
     args = parser.parse_args()
-
+    
     max_w, max_h = args.max_size
     if max_w < 16 or max_h < 16:
         print("Error: max dimensions must be at least 16 pixels", file=sys.stderr)
@@ -134,10 +144,8 @@ def main():
     
     FILE_ID = generate_random_id()
     
-    # filename suffix
     FILE_SUFFIX = f"{SRC_CALL}_{FILE_ID}_{PACKET_LENGTH}b_{FRAME_DELAY}s_{args.quality}q"
-
-    # WAV filename includes FILE_ID
+    
     output_wav = f"{basename_noext}_audio_{FILE_SUFFIX}.wav"
 
     print(f"Image name        : {basename}")
@@ -151,7 +159,6 @@ def main():
     # === KISS CONNECTION CHECK ===
     print("Checking KISS connection to Dire Wolf...", end=" ")
     sys.stdout.flush()
-
     sock = None
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -171,8 +178,15 @@ def main():
         sys.exit(1)
 
     # === Proceed ===
-
+    print()
+    
     ssdv_process = img2ssdv(PACKET_LENGTH,AUDIO_DIR,filename,SRC_CALL,args.text,args.quality,args.max_size,FILE_SUFFIX)
+
+    print(ssdv_process)
+
+    if not os.path.exists(os.path.join(AUDIO_DIR, f"{basename_noext}_ssdv_{FILE_SUFFIX}.bin")):
+        print(f"\nError: SSDV .bin image not found.\nPlease check your config.ini")
+        sys.exit(1)
 
     data = open(os.path.join(AUDIO_DIR, f"{basename_noext}_ssdv_{FILE_SUFFIX}.bin"), 'rb').read()
     frame_num = 0
@@ -183,10 +197,14 @@ def main():
     src_addr = ax25_address(SRC_CALL)
     dest_addr = ax25_address(str(FILE_ID) + str(hex(total_frames)[2:]), last=True)
 
-    print("Starting WAV recording...")
+    print("\nStarting WAV recording...")
     wav_process = start_recording(os.path.join(AUDIO_DIR, output_wav))
-    time.sleep(2)
+    
+    if not wav_process:
+        print("Warning: No WAV file created. btw you can record this audio using another app. 73!")
 
+    time.sleep(2)
+    print()
     print(f"Sending {total_bytes} bytes to Dire Wolf in ~{total_frames} frames...\n")
 
     while offset < total_bytes:
@@ -211,22 +229,25 @@ def main():
         frame_num += 1
         
         time.sleep(FRAME_DELAY)
-    print()
     sock.close()
-    print("\nPress <ENTER> only after the sound ends, or the audio won't save completely")
-    input()
-    stop_recording(wav_process)
+    print()
+    
+    if(wav_process):
+        print("\nPress <ENTER> only after the sound ends, or the audio won't save completely")
+        input()
+        stop_recording(wav_process)
 
     time.sleep(1)
     if os.path.exists(os.path.join(AUDIO_DIR, output_wav)):
         size_mb = os.path.getsize(os.path.join(AUDIO_DIR, output_wav)) / (1024 * 1024)
         print(f"WAV file saved: {output_wav} ({size_mb:.2f} MB)")
         print(f"Ready for playback over radio. 73!")
-    else:
-        print("Warning: No WAV file created — check sox/audio setup.")
 
 
 if __name__ == "__main__":
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    DEFAULT_APP_SOX = config['app']['sox']
     try:
         main()
     except KeyboardInterrupt:
