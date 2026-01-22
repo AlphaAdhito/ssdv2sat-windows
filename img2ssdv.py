@@ -26,6 +26,7 @@ import argparse
 import sys
 import subprocess
 from PIL import Image, ImageDraw, ImageFont
+import configparser
 
 def make_multiple_of_16(n: int) -> int:
     """Round down to nearest multiple of 16 (SSDV needs 16×16 MCU blocks)."""
@@ -91,12 +92,12 @@ def ssdv_encoding(packet_length,input_filename,output_filename,callsign,quality)
   try:
     #auto adjust ssdv quality 	  
     q = min(7, max(0, round((quality - 10) / 12)))  
-    command = ["ssdv", "-e", "-n", "-q", str(q), "-l", str(packet_length), "-c", str(callsign), input_filename, output_filename]
+    command = [DEFAULT_APP_SSDV, "-e", "-n", "-q", str(q), "-l", str(packet_length), "-c", str(callsign), input_filename, output_filename]
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     return stderr.decode().strip()
   except FileNotFoundError:
-    return f"Cannot find SSDV app. {output_filename} not created.."
+    return f"\nError: {DEFAULT_APP_SSDV} not found\n{output_filename} not created\nCheck config.ini"
   except subprocess.CalledProcessError as e:
     print(f"An error occurred while running {app_name}: {e}")
     return None
@@ -203,4 +204,7 @@ def main():
 
 
 if __name__ == "__main__":
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    DEFAULT_APP_SSDV = config['app']['ssdv']
     main()
