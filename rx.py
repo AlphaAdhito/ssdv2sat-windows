@@ -30,6 +30,7 @@ import argparse
 import sys
 import os
 import subprocess
+import configparser
 from collections import defaultdict
 
 KISS_FEND = b'\xC0'
@@ -38,7 +39,7 @@ KISS_DATA_FRAME = 0x00
 # 16 byte il2p header + 64 byte minimum ssdv 
 MIN_PACKET_LENGTH = 16 + 64
 
-def show_progress(i, n, width=30):
+def show_progress(i, n, width=20):
     p = int(i) / int(n)
     pdec = int(p*100)
     bar = "█" * int(width * p) + "░" * (width - int(width * p))
@@ -241,6 +242,10 @@ def main(args):
             print(f"  {call}_{img}  →  {len(frags)} fragments")
 
 if __name__ == "__main__":
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    DEFAULT_APP_SSDV = config['app']['ssdv']
+    
     parser = argparse.ArgumentParser(
         description="Dire Wolf KISS TCP → SSDV → sorted .bin files → JPEG image"
     )
