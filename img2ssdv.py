@@ -2,7 +2,7 @@
 # Copyright 2026 hobisatelit
 # https://github.com/hobisatelit/ssdv2sat
 # License: GPL-3.0-or-later
-VERSION = '0.01'
+VERSION = '0.02'
 
 """
 Convert image to SSDV-compatible JPEG.
@@ -25,7 +25,7 @@ import os
 import argparse
 import sys
 import subprocess
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 def make_multiple_of_16(n: int) -> int:
     """Round down to nearest multiple of 16 (SSDV needs 16×16 MCU blocks)."""
@@ -56,15 +56,45 @@ def resize_to_fit_keep_aspect(
     new_h = max(new_h, 16)
 
     return img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+    
+def text_topleft(im, text):
+    """Small white text on semi-black box. Upper left. No drama."""
+    draw = ImageDraw.Draw(im, "RGBA")
 
+    try:
+        font = ImageFont.truetype("arial.ttf", 10)
+    except OSError:
+        font = ImageFont.load_default()
 
-def ssdv_encoding(packet_length,input_filename,output_filename,callsign):
+    # Measure text (modern Pillow way, fallback for old crap)
+    try:
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw = bbox[2] - bbox[0]
+        th = bbox[3] - bbox[1]
+    except AttributeError:
+        tw, th = draw.textsize(text, font=font)
+
+    pad = 4
+    x, y = 4, 4
+    boxw = tw + pad*2
+    boxh = th + pad*2
+
+    # Black semi-transparent box
+    draw.rectangle((x, y, x+boxw, y+boxh), fill=(0, 0, 0, 50))
+
+    # White text
+    draw.text((x + pad, y + pad), text, font=font, fill=(255, 255, 255, 255))
+
+    return im
+
+def ssdv_encoding(packet_length,input_filename,output_filename,callsign,quality):
   try:
-    command = ["ssdv", "-e", "-n", "-q", "1", "-l", str(packet_length), "-c", str(callsign), input_filename, output_filename]
+    #auto adjust ssdv quality 	  
+    q = min(7, max(0, round((quality - 10) / 12)))  
+    command = ["ssdv", "-e", "-n", "-q", str(q), "-l", str(packet_length), "-c", str(callsign), input_filename, output_filename]
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     return stderr.decode().strip()
-    #return process
   except FileNotFoundError:
     return f"Cannot find SSDV app. {output_filename} not created.."
   except subprocess.CalledProcessError as e:
@@ -73,19 +103,26 @@ def ssdv_encoding(packet_length,input_filename,output_filename,callsign):
     
 
 def main():
-    parser = argparse.ArgumentParser(description="Convert image to SSDV-compatible JPEG")
+    parser = argparse.ArgumentParser(
+         description="Convert image to SSDV-compatible JPEG",
+         epilog="Example: ./img2ssdv.py image.jpg"
+    )
     parser.add_argument("input", help="Input image filename (JPG, PNG, etc.)")
     parser.add_argument("--max-size", nargs=2, type=int, metavar=("WIDTH", "HEIGHT"),
                         default=[320, 320],
                         help="Max width and height in pixels (default: 320 320)")
     parser.add_argument("--callsign", type=str, default='ABCDEF',
-                        help="your actual callsign (default: ABCDEF)")   
+                        help="your actual callsign (default: ABCDEF)")
+    parser.add_argument("--text", type=str, default=None,
+                        help="put small text top-left corner of the image")   
     parser.add_argument("--quality", type=int, default=20,
                         help="JPEG quality 1–95 (default: 20 – good for SSDV)")                  
     parser.add_argument("--length", type=int, default=256,
                         help="SSDV packet length (default: 256) - between 64-256")
     parser.add_argument("--dir", type=str, default=".",
                         help="output directory (default: .)") 
+    parser.add_argument("--suffix", type=str, default="",
+                        help="filename suffix") 
     parser.add_argument("--version", action='version', version=f"ssdv2sat-%(prog)s v{VERSION} by hobisatelit <https://github.com/hobisatelit>", help="Show the version of the application")
     
     args = parser.parse_args()
@@ -94,8 +131,11 @@ def main():
     basename = os.path.basename(args.input)
     basename_noext = os.path.splitext(basename)[0]
 
-    small_output_filename = f"{basename_noext}_small.jpg"
-    ssdv_output_filename = f"{basename_noext}.bin"
+    if args.suffix:
+       args.suffix = f"_{args.suffix}"
+		
+    small_output_filename = f"{basename_noext}_small{args.suffix}.jpg"
+    ssdv_output_filename = f"{basename_noext}_ssdv{args.suffix}.bin"
 
     max_w, max_h = args.max_size
     if max_w < 16 or max_h < 16:
@@ -122,6 +162,9 @@ def main():
 
             # Resize
             im_resized = resize_to_fit_keep_aspect(im, max_w, max_h)
+            
+            if args.text:
+                 im_resized = text_topleft(im_resized, args.text)
 
             # Save with SSDV-friendly settings
             im_resized.save(
@@ -138,7 +181,7 @@ def main():
             
                       
             #ssdv auto encode
-            ssdv_process = ssdv_encoding(args.length,os.path.join(args.dir, small_output_filename),os.path.join(args.dir, ssdv_output_filename),args.callsign)
+            ssdv_process = ssdv_encoding(args.length,os.path.join(args.dir, small_output_filename),os.path.join(args.dir, ssdv_output_filename),args.callsign,args.quality)
 
 
             print(f"\nJPEG Optimization → {small_output_filename}")
