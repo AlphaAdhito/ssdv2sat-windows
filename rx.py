@@ -8,8 +8,13 @@
 # and extracts SSDV packets from IL2P payloads
 #
 # Payload structure from Dire Wolf KISS:
-#   bytes 0–15:   IL2P header (used as image fingerprint / unique id)
+#   bytes 0–15:   AX25 header (used as image fingerprint / unique id)
 #   bytes 16–271: SSDV packet (max: 256 bytes total)
+#                               
+# AX25 packet (16 bytes):
+#   bytes 0-6 : dest_field 
+#             : decode to ascii, 3 first = file_id, rest = total_frame in hex
+#   bytes 7-13: src_field = sender callsign 
 #
 # SSDV packet (max: 256 bytes):
 #   offset  0: sync        0x55
@@ -18,7 +23,7 @@
 #   offset  6: image ID    1 byte
 #   offset 7–8: packet ID  2 bytes (big-endian)
 #   offset 9–255: image data (247 bytes)
-VERSION = '0.01'
+VERSION = '0.02'
 
 import socket
 import argparse
@@ -32,6 +37,13 @@ KISS_DATA_FRAME = 0x00
 
 # 16 byte il2p header + 64 byte minimum ssdv 
 MIN_PACKET_LENGTH = 16 + 64
+
+def show_progress(i, n, width=30):
+    p = int(i) / int(n)
+    pdec = int(p*100)
+    bar = "█" * int(width * p) + "░" * (width - int(width * p))
+    output = f"|{bar}| {pdec:5d}% | frags {i:4d}/{n}"
+    return output
 
 def ssdv_decoding(packet_length,input_filename,output_filename):
   try:
@@ -103,7 +115,7 @@ def main(args):
     os.makedirs(output_dir, exist_ok=True)
 
     print(f"Decode SSDV image fragments to: {output_dir}/")
-    print(f"Expecting 16-byte IL2P for ID + min {MIN_PACKET_LENGTH - 16}-byte for SSDV")
+    print(f"Expecting 16-byte AX25 (IL2P) for ID + min {MIN_PACKET_LENGTH - 16}-byte for SSDV")
 
     # (callsign, image_id) → {packet_id: image_data (186 bytes)}
     images = defaultdict(dict)
@@ -111,6 +123,8 @@ def main(args):
 
     packet_buf = bytearray()
     in_frame = False
+    
+    temp = ''
 
     while True:
         try:
@@ -149,15 +163,21 @@ def main(args):
                                                                 
                                 if parsed:
                                     parsed['callsign'] = src_call
-                                    
+                                    total_frame_text = ""
                                     if not parsed['image_id']:
-                                         parsed['image_id'] = file_id 
+                                        parsed['image_id'] = file_id[0:3]
+                                        try:
+                                            total_frame = int(file_id[3:],16)
+                                            total_frame_text = f"/ {total_frame}"
+                                        except ValueError:
+                                            pass 
+                                    else:
+                                        total_frame = 0 
 
                                     key = (parsed['callsign'], parsed['image_id'])
                                     was_new = len(images[key]) == 0
 
                                     images[key][parsed['packet_id']] = parsed['image_data']
-
                                     
                                     fname_noext = f"{parsed['callsign']}_{parsed['image_id']}_{ssdv_len}bs"
                                     fname = f"{fname_noext}.bin"
@@ -170,21 +190,36 @@ def main(args):
                                             f.write(images[key][pid])
                                             
                                     if was_new:
-                                        print(f"    → New from: {parsed['callsign']}, image: {parsed['image_id']} ({ssdv_len} byte/frags)")
+                                        if not args.simple:
+                                           print(f"\n→ New from: {parsed['callsign']}, image: {parsed['image_id']} ({ssdv_len} byte/frags)")
+                                        else:
+                                           print(f"\n→ New from: {parsed['callsign']}, image: {parsed['image_id']} ({ssdv_len} byte/frags)", end="") 
  
                                     if args.verbose:
                                         print(f"\nReceived SSDV candidate ({ssdv_len}) byte:")
                                         print("" + bytes_to_hex_preview(ssdv_part, 1000))
 
                                     total_valid += 1
-                                    print(f"OK  Packet {parsed['packet_id']:5d} | {parsed['callsign']:<8} | "
-                                          f"Img {parsed['image_id']} | {len(images[key]):3d} frags | → {fname}")
-
+                                    if not args.simple:
+                                        print(f"\r{parsed['callsign']:<7} | Img {parsed['image_id']:<4} | Packet {parsed['packet_id']:5d}"
+                                              f" | {(str(len(images[key])) + str(total_frame_text)):>7} frags | → {fname}")
+                                    else:
+                                        if temp != parsed['image_id']:
+                                            print()
+                                        if total_frame:    
+                                            progress = show_progress(len(images[key]), total_frame)
+                                        else:
+                                            progress = f"| {len(images[key]):4d} frags"  
+                                
+                                        print(f"\r{parsed['callsign']:<7} | Img {parsed['image_id']:<4} | Packet {parsed['packet_id']:5d} {progress}", end="")           
+                                        temp = parsed['image_id']
+                                        
                                     ssdv_process = ssdv_decoding(ssdv_len,os.path.join(output_dir, fname),os.path.join(output_dir, f"{fname_noext}.jpg"))
 
                                 else:
                                     if args.verbose:
                                         print("  → Rejected (invalid SSDV)")
+
                             else:
                                 if args.verbose:
                                     print(f"  → Wrong payload length: {len(payload)} (expected min {MIN_PACKET_LENGTH})")
@@ -196,14 +231,14 @@ def main(args):
                     packet_buf = bytearray()
             elif in_frame:
                 packet_buf.append(byte)
-
+    #print()
     sock.close()
     print(f"\nFinished. Processed {total_valid} valid SSDV packets.")
 
     if total_valid > 0:
         print("\nFiles created in output/:")
         for (call, img), frags in sorted(images.items()):
-            print(f"  {call}_{img}.bin  →  {len(frags)} fragments")
+            print(f"  {call}_{img}  →  {len(frags)} fragments")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -212,6 +247,7 @@ if __name__ == "__main__":
     parser.add_argument("--host", default="127.0.0.1", help="Dire Wolf host (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8001, help="Dire Wolf KISS TCP port (default: 8001)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Print hex of each received SSDV candidate + parsing details")
+    parser.add_argument("-s", "--simple", action="store_true", help="Simple UIX with eye-catching progress bar for certain fragments")
     parser.add_argument("--version", action='version', version=f"ssdv2sat-%(prog)s v{VERSION} by hobisatelit <https://github.com/hobisatelit>", help="Show the version of the application")
     args = parser.parse_args()
 
