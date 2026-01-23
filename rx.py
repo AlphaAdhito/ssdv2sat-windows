@@ -48,7 +48,7 @@ def show_progress(i, n, width=20):
 
 def ssdv_decoding(packet_length,input_filename,output_filename):
   try:
-    command = ["ssdv", "-d", "-l", str(packet_length), input_filename, output_filename]
+    command = [DEFAULT_APP_SSDV, "-d", "-l", str(packet_length), input_filename, output_filename]
     return subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
   except FileNotFoundError:
     return None
