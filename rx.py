@@ -29,6 +29,7 @@ import socket
 import argparse
 import sys
 import os
+import time
 import subprocess
 import configparser
 from collections import defaultdict
@@ -37,7 +38,8 @@ KISS_FEND = b'\xC0'
 KISS_DATA_FRAME = 0x00
 
 # 16 byte il2p header + 64 byte minimum ssdv 
-MIN_PACKET_LENGTH = 16 + 64
+# MIN_PACKET_LENGTH = 16 + 64
+MIN_PACKET_LENGTH = 16
 
 def show_progress(i, n, width=20):
     p = int(i) / int(n)
@@ -88,7 +90,7 @@ def parse_ssdv_packet(ssdv_bytes: bytes, verbose: bool = False) -> dict | None:
     """
     if ssdv_bytes[0] != 0x55 or ssdv_bytes[1] != 0x67:
         if verbose:
-            print(f"  → Invalid sync bytes: {ssdv_bytes[0]:02X} {ssdv_bytes[1]:02X} (expected 55 67)")
+            print(f"→ Invalid sync bytes: {ssdv_bytes[0]:02X} {ssdv_bytes[1]:02X} (expected 55 67)")
         return None
   
     packet_id = (ssdv_bytes[7] << 8) | ssdv_bytes[8]
@@ -120,7 +122,9 @@ def main(args):
 
     # (callsign, image_id) → {packet_id: image_data (186 bytes)}
     images = defaultdict(dict)
+    images_inv = defaultdict(dict)
     total_valid = 0
+    total_invalid = 0
 
     packet_buf = bytearray()
     in_frame = False
@@ -217,12 +221,40 @@ def main(args):
                                         
                                     ssdv_process = ssdv_decoding(ssdv_len,os.path.join(output_dir, fname),os.path.join(output_dir, f"{fname_noext}.jpg"))
 
-                                else:
+                                else:    
+                                    print(f"  → Rejected (invalid SSDV) - {total_invalid}")
+                                    
+                                    text = ''
+                                    text = ssdv_part.decode('UTF-8', errors='replace')               
                                     if args.verbose:
-                                        print("  → Rejected (invalid SSDV)")
+                                        print(f"  → From: {src_call} → {file_id}")
+                                        print(f"  → Data only in text:")
+                                        print(text)
+                                        print(f"  → Data only in HEX: ({ssdv_len} byte)")
+                                        print(bytes_to_hex_preview(ssdv_part, 1000))
+                                        print("  → Full Payload (AX25 + Data):")
+                                        print(bytes_to_hex_preview(payload, 1000))
+                                    
+                                    key = src_call
+                                    images_inv[key,'hex'][total_invalid] = ssdv_part
+                                    images_inv[key,'txt'][total_invalid] = text
+                                    formatted_time = time.strftime("%Y-%m-%dT%H:%M:%S")
+                                    path_bin = os.path.join(output_dir, f"{src_call}-nonssdv-{formatted_time}.bin")
+                                    path_ascii = os.path.join(output_dir, f"{src_call}-nonssdv-{formatted_time}.txt")
+
+                                    with open(path_bin, "wb") as f:
+                                        for pid in sorted(images_inv[key,'hex']):
+                                            f.write(images_inv[key,'hex'][pid])
+                                            
+                                    with open(path_ascii, "w") as f:
+                                        for pid in sorted(images_inv[key,'txt']):
+                                            f.write(images_inv[key,'txt'][pid])
+                                            
+                                    total_invalid += 1    
 
                             else:
                                 if args.verbose:
+                                    print(bytes_to_hex_preview(payload, 1000))
                                     print(f"  → Wrong payload length: {len(payload)} (expected min {MIN_PACKET_LENGTH})")
 
                     packet_buf = bytearray()
@@ -234,7 +266,7 @@ def main(args):
                 packet_buf.append(byte)
     #print()
     sock.close()
-    print(f"\nFinished. Processed {total_valid} valid SSDV packets.")
+    print(f"\nFinished.\n → Processed {total_valid} valid SSDV packets.\n → Processed {total_invalid} non SSDV packets. ")
 
     if total_valid > 0:
         print("\nFiles created in output/:")
