@@ -121,6 +121,7 @@ def main(args):
     print(f"Expecting 16-byte AX25 (IL2P) for ID + min {MIN_PACKET_LENGTH - 16}-byte for SSDV")
 
     # (callsign, image_id) → {packet_id: image_data (186 bytes)}
+    formatted_time = time.strftime("%Y-%m-%dT%H:%M:%S")
     images = defaultdict(dict)
     images_inv = defaultdict(dict)
     total_valid = 0
@@ -238,17 +239,22 @@ def main(args):
                                     key = src_call
                                     images_inv[key,'hex'][total_invalid] = ssdv_part
                                     images_inv[key,'txt'][total_invalid] = text
-                                    formatted_time = time.strftime("%Y-%m-%dT%H:%M:%S")
+                                    
                                     path_bin = os.path.join(output_dir, f"{src_call}-nonssdv-{formatted_time}.bin")
                                     path_ascii = os.path.join(output_dir, f"{src_call}-nonssdv-{formatted_time}.txt")
 
+                                    if args.newline:
+                                        nl = '\n'
+                                    else:
+                                        nl = ''
+                                        
                                     with open(path_bin, "wb") as f:
                                         for pid in sorted(images_inv[key,'hex']):
                                             f.write(images_inv[key,'hex'][pid])
                                             
                                     with open(path_ascii, "w") as f:
                                         for pid in sorted(images_inv[key,'txt']):
-                                            f.write(images_inv[key,'txt'][pid])
+                                            f.write(f"{images_inv[key,'txt'][pid]}{nl}")
                                             
                                     total_invalid += 1    
 
@@ -285,6 +291,7 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8001, help="Dire Wolf KISS TCP port (default: 8001)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Print hex of each received SSDV candidate + parsing details")
     parser.add_argument("-s", "--simple", action="store_true", help="Simple UIX with eye-catching progress bar for certain fragments")
+    parser.add_argument("-nl", "--newline", action="store_true", help="Add newline at the end of every non SSDV text data")
     parser.add_argument("--version", action='version', version=f"ssdv2sat-%(prog)s v{VERSION} by hobisatelit <https://github.com/hobisatelit>", help="Show the version of the application")
     args = parser.parse_args()
 
