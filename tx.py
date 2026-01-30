@@ -40,7 +40,15 @@ def generate_random_id():
 
 def start_recording(output_filename):
   try:
-    command = [DEFAULT_APP_SOX, "-d", "-r", "44100", "-c", "1", "-t", "wav", "-q", "-V1", output_filename]
+    command = [
+    DEFAULT_APP_SOX,
+    "-t", "waveaudio", "CABLE Output (VB-Audio Virtual Cable)",   # ← input device
+    "-r", "44100",
+    "-c", "1",
+    "-t", "wav",
+    "-V2",  # some verbosity to see issues
+    output_filename
+]
     return subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
   except FileNotFoundError:
     print(f"Error: {DEFAULT_APP_SOX} not found. Make sure its installed.\nCheck config.ini. Audio file not created..")
@@ -53,7 +61,18 @@ def start_recording(output_filename):
 def img2ssdv(packet_length,output_dir,input_filename,callsign,text,quality,max_size,filesuffix):
   try:
     max_w, max_h = max_size
-    command = [os.path.join(os.getcwd(),"img2ssdv.py"), "--length", str(packet_length), "--dir", str(output_dir), "--callsign", str(callsign),  input_filename, "--text", str(text), "--quality", str(quality), "--max-size", str(max_w), str(max_h), "--suffix", filesuffix]
+    command = [
+    sys.executable,                                 # this gives full path to your python.exe (e.g. C:\Users\alpha\AppData\Local\Python\pythoncore-3.14-64\python.exe)
+    os.path.join(os.getcwd(), "img2ssdv.py"),
+    "--length", str(packet_length),
+    "--dir", str(output_dir),
+    "--callsign", str(callsign),
+    input_filename,
+    "--text", str(text),
+    "--quality", str(quality),
+    "--max-size", str(max_w), str(max_h),
+    "--suffix", filesuffix
+]
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     # waiting until app finish 
     stdout, stderr = process.communicate()

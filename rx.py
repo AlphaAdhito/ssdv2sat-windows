@@ -29,7 +29,6 @@ import socket
 import argparse
 import sys
 import os
-import time
 import subprocess
 import configparser
 from collections import defaultdict
@@ -38,8 +37,7 @@ KISS_FEND = b'\xC0'
 KISS_DATA_FRAME = 0x00
 
 # 16 byte il2p header + 64 byte minimum ssdv 
-# MIN_PACKET_LENGTH = 16 + 64
-MIN_PACKET_LENGTH = 16
+MIN_PACKET_LENGTH = 16 + 64
 
 def show_progress(i, n, width=20):
     p = int(i) / int(n)
@@ -50,7 +48,7 @@ def show_progress(i, n, width=20):
 
 def ssdv_decoding(packet_length,input_filename,output_filename):
   try:
-    command = [DEFAULT_APP_SSDV, "-d", "-l", str(packet_length), input_filename, output_filename]
+    command = ["ssdv", "-d", "-l", str(packet_length), input_filename, output_filename]
     return subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
   except FileNotFoundError:
     return None
@@ -90,7 +88,7 @@ def parse_ssdv_packet(ssdv_bytes: bytes, verbose: bool = False) -> dict | None:
     """
     if ssdv_bytes[0] != 0x55 or ssdv_bytes[1] != 0x67:
         if verbose:
-            print(f"→ Invalid sync bytes: {ssdv_bytes[0]:02X} {ssdv_bytes[1]:02X} (expected 55 67)")
+            print(f"  → Invalid sync bytes: {ssdv_bytes[0]:02X} {ssdv_bytes[1]:02X} (expected 55 67)")
         return None
   
     packet_id = (ssdv_bytes[7] << 8) | ssdv_bytes[8]
@@ -121,11 +119,8 @@ def main(args):
     print(f"Expecting 16-byte AX25 (IL2P) for ID + min {MIN_PACKET_LENGTH - 16}-byte for SSDV")
 
     # (callsign, image_id) → {packet_id: image_data (186 bytes)}
-    formatted_time = time.strftime("%Y-%m-%dT%H:%M:%S")
     images = defaultdict(dict)
-    images_inv = defaultdict(dict)
     total_valid = 0
-    total_invalid = 0
 
     packet_buf = bytearray()
     in_frame = False
@@ -222,45 +217,12 @@ def main(args):
                                         
                                     ssdv_process = ssdv_decoding(ssdv_len,os.path.join(output_dir, fname),os.path.join(output_dir, f"{fname_noext}.jpg"))
 
-                                else:    
-                                    print(f"  → Rejected (invalid SSDV) - {total_invalid}")
-                                    
-                                    text = ''
-                                    text = ssdv_part.decode('UTF-8', errors='replace')               
+                                else:
                                     if args.verbose:
-                                        print(f"  → From: {src_call} → {file_id}")
-                                        print(f"  → Data only in text:")
-                                        print(text)
-                                        print(f"  → Data only in HEX: ({ssdv_len} byte)")
-                                        print(bytes_to_hex_preview(ssdv_part, 1000))
-                                        print("  → Full Payload (AX25 + Data):")
-                                        print(bytes_to_hex_preview(payload, 1000))
-                                    
-                                    key = src_call
-                                    images_inv[key,'hex'][total_invalid] = ssdv_part
-                                    images_inv[key,'txt'][total_invalid] = text
-                                    
-                                    path_bin = os.path.join(output_dir, f"{src_call}-nonssdv-{formatted_time}.bin")
-                                    path_ascii = os.path.join(output_dir, f"{src_call}-nonssdv-{formatted_time}.txt")
-
-                                    if args.newline:
-                                        nl = '\n'
-                                    else:
-                                        nl = ''
-                                        
-                                    with open(path_bin, "wb") as f:
-                                        for pid in sorted(images_inv[key,'hex']):
-                                            f.write(images_inv[key,'hex'][pid])
-                                            
-                                    with open(path_ascii, "w") as f:
-                                        for pid in sorted(images_inv[key,'txt']):
-                                            f.write(f"{images_inv[key,'txt'][pid]}{nl}")
-                                            
-                                    total_invalid += 1    
+                                        print("  → Rejected (invalid SSDV)")
 
                             else:
                                 if args.verbose:
-                                    print(bytes_to_hex_preview(payload, 1000))
                                     print(f"  → Wrong payload length: {len(payload)} (expected min {MIN_PACKET_LENGTH})")
 
                     packet_buf = bytearray()
@@ -272,7 +234,7 @@ def main(args):
                 packet_buf.append(byte)
     #print()
     sock.close()
-    print(f"\nFinished.\n → Processed {total_valid} valid SSDV packets.\n → Processed {total_invalid} non SSDV packets. ")
+    print(f"\nFinished. Processed {total_valid} valid SSDV packets.")
 
     if total_valid > 0:
         print("\nFiles created in output/:")
@@ -291,7 +253,6 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8001, help="Dire Wolf KISS TCP port (default: 8001)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Print hex of each received SSDV candidate + parsing details")
     parser.add_argument("-s", "--simple", action="store_true", help="Simple UIX with eye-catching progress bar for certain fragments")
-    parser.add_argument("-nl", "--newline", action="store_true", help="Add newline at the end of every non SSDV text data")
     parser.add_argument("--version", action='version', version=f"ssdv2sat-%(prog)s v{VERSION} by hobisatelit <https://github.com/hobisatelit>", help="Show the version of the application")
     args = parser.parse_args()
 
