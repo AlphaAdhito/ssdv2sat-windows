@@ -14,6 +14,31 @@ Notes:
 - `sox.exe` must be located inside the `sox-14-4-2` folder (as referenced in `config.ini`)
 - `ssdv.exe` must be placed in the project root directory
 
+## Python Setup (Required)
+
+Python 3.8 or newer
+
+Works with Python 3.9 / 3.10 / 3.11
+
+1. Go to:
+  https://www.python.org/downloads/windows/
+  Click “Download Python 3.x”
+
+2. When the installer opens:
+  Check this box:
+  Add Python to PATH
+  Then click:
+  Install Now
+  This step is mandatory for your .bat files to work.
+  To verify, open Command Prompt (type cmd on windows search) and type:
+  python --version
+  You should see something like:
+  Python 3.11.x (or any version that you download)
+
+3. Required Python packages
+  pip install pillow
+
+
 ## How to Use (TX)
 
 1. Prepare the image that you want to be sent via SSDV
